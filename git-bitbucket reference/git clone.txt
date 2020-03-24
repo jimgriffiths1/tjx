@@ -1,0 +1,9 @@
+
+Global Configuration Commands
+    git config --global user.name "James Griffiths"
+    git config --global user.email "jameswilliam_griffiths@tjx.com"
+    git config --global http.sslVerify false
+
+
+Clone Splunk Repo
+    git clone https://jam01370@bitbucket.tjx.com/scm/splunk/splunk_uf_install.git

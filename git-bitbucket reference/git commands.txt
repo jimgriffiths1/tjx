@@ -1,0 +1,44 @@
+Git Add/Commit/Push in one shot
+=========================================
+git add -A ; git commit -m "updated"; git push
+
+
+Rename local & remote branch
+===============================
+1. Checkout your local branch
+
+2. Rename current local branch:
+      git branch -m new-name   
+      git branch -m feature/splunk_uf_install
+
+3. Delete the current remote & push new
+   git push origin :current-name new-name
+   git push origin :feature/splunk_uf_install_20190705 feature/splunk_uf_install
+
+4. Reset upstream branch for new-name local branch.
+   Switch to the branch and then:
+   git push origin -u feature/splunk_uf_install
+
+
+Update local branch from remote master
+e.g.  rebase branch based on remote master 
+===========================================
+1) Switch to master branch: git checkout master
+2) git pull origin master
+3) Switch back to your own branch:  git checkout feature/splunk_uf_install
+4) git rebase origin/master
+Then, your branch is updated to newest commits!
+
+
+Get list of all remote branches
+======================================
+1) On local computer, cd to any git local repo, e.g.  ~/gitrepos/Jim-INOP-242-ansible-integration-with-service-now 
+2) git branch -a
+
+
+
+
+
+
+
+

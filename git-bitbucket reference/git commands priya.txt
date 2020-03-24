@@ -1,0 +1,11 @@
+git init
+git add --all
+git commit -m "Initial Commit"
+git remote add origin https://bitbucket.tjx.com/scm/io/ioac.git
+git push -u origin mybranch
+history | grep git 
+
+git add -A ; git commit -m "updated"; git push
+
+
+git remote add origin https://bitbucket.tjx.com/splunk/jim_splunk_uf_install.git
