@@ -1,0 +1,90 @@
+- name: populate region
+  set_fact: 
+    region: "{{ loctoreg[location] }}"
+  tags:
+    - regionset
+
+- name: Download splunk binaries and config
+  win_get_url:
+    url: "https://jfrog.tjx.com/artifactory/WINDOWS/SPLUNK/splunk_{{ splunk_version }}.zip"
+    dest: C:\\Temp
+
+- name: extract binary and config files
+  win_unzip:
+    src: C:\\Temp\\splunk_{{ splunk_version }}.zip
+    dest: C:\\Temp\\splunk
+
+- name: install splunk universal forwarder
+  win_package:
+    path: "C:\\Temp\\splunk\\splunk_{{ splunk_version }}\\{{ region }}\\splunkforwarder-{{ splunk_version }}-8c86330ac18-x64-release.msi"
+    arguments:
+      - AGREETOLICENSE=yes
+      - LAUNCHSPLUNK=0
+      - GENRANDOMPASSWORD=1
+      - /quiet
+    log_path: "C:\\splunkforwarder-{{ splunk_version }}-install.log"
+    creates_path: "C:\\Program Files\\SplunkUniversalForwarder"
+    state: present
+  register: splunk_install
+
+- name: stop splunk service if running
+  win_service:
+    name: SplunkForwarder
+    state: stopped
+  when: splunk_install.changed != false
+
+- name: add inputs.conf file to splunk
+  win_template:
+    src: inputs.conf.j2
+    dest: "C:\\Program Files\\SplunkUniversalForwarder\\etc\\system\\local\\inputs.conf"
+  when: splunk_install.changed != false
+
+- name: Add server.conf file to splunk
+  win_template:
+    src: server.conf.j2
+    dest: "C:\\Program Files\\SplunkUniversalForwarder\\etc\\system\\local\\server.conf"
+  when: splunk_install.changed != false
+
+- name: copy conf files to splunk
+  win_copy:
+    src: "C:\\Temp\\splunk\\splunk_{{ splunk_version }}\\{{ region }}\\300_win_if_pool_{{ location }}"
+    dest: "C:\\Program Files\\SplunkUniversalForwarder\\etc\\apps"
+    remote_src: True
+  when: splunk_install.changed != false
+
+- name: copy conf files to splunk
+  win_copy:
+    src: "C:\\Temp\\splunk\\splunk_{{ splunk_version }}\\{{ region }}\\mgmt-rest-disable_uh"
+    dest: "C:\\Program Files\\SplunkUniversalForwarder\\etc\\apps"
+    remote_src: True
+  when: splunk_install.changed != false
+
+- name: copy conf files to splunk
+  win_copy:
+    src: "C:\\Temp\\splunk\\splunk_{{ splunk_version }}\\{{ region }}\\win_siem_uh"
+    dest: "C:\\Program Files\\SplunkUniversalForwarder\\etc\\apps"
+    remote_src: True
+  when: splunk_install.changed != false
+
+- name: copy conf files to splunk
+  win_copy:
+    src: "C:\\Temp\\splunk\\splunk_{{ splunk_version }}\\{{ region }}\\win_splunk-btool-internal-logs_uh"
+    dest: "C:\\Program Files\\SplunkUniversalForwarder\\etc\\apps"
+    remote_src: True
+  when: splunk_install.changed != false
+
+- name: start splunk
+  win_shell: "& .\\splunk.exe start"
+  args:
+    chdir: "C:\\Program Files\\SplunkUniversalForwarder\\bin\\"
+  when: splunk_install.changed != false
+
+- name: cleaup binaries
+  win_file:
+   path: C:\\Temp\\splunk
+   state: absent
+
+- name: cleanup zipfile
+  win_file:
+   path: C:\\Temp\\splunk_{{ splunk_version }}.zip
+   state: absent

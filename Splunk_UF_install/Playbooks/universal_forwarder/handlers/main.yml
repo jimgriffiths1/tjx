@@ -1,0 +1,11 @@
+# This playbook contains scripts for  Splunk Server start/stop/ restart  for Universal forwarder
+
+- name: restart splunk
+  shell: "{{ splunk_uf_home }}/bin/splunk restart"
+
+- name:  start splunkUniversalForwarder
+  shell: "{{ splunk_uf_home }}/bin/splunk start"
+
+
+- name:  stop splunkUniversalForwarder
+  shell: "{{ splunk_uf_home }}/bin/splunk stop"

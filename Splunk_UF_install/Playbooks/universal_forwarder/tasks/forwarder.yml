@@ -1,0 +1,164 @@
+---
+# This playbook will install or upgrade the Splunk Universal Forwarder 
+
+- name: Get OS of target server
+  command: uname
+  register: uname
+
+- debug: msg="Host OS is {{ uname.stdout }}"
+
+- name: Abort if host OS is not Linux or AIX
+  fail:
+    msg: "Unsupported operating system '{{uname.stdout}}'"
+  when: uname.stdout !='Linux' and uname.stdout !='AIX'
+
+- set_fact:
+    host_os: "{{uname.stdout}}"
+
+
+#######################################################
+# Capture & announce version of Splunk to be installed
+#######################################################  
+- set_fact:
+    splunk_binary_to_install: "{%if host_os == 'Linux'%} {{splunk_uf_binary_linux}} {%else%} {{splunk_uf_binary_aix}} {% endif %}"
+ 
+- debug: msg="Splunk binary to be installed = {{splunk_binary_to_install}}"
+  
+- name: Isolate version number of splunk to be installed (between 1st & 2nd dash in filename) 
+  shell: echo "{{splunk_binary_to_install}}" | grep -Po "(?<=splunkforwarder-)(.*?)(?=-.*$)"
+  register: splunk_version_to_install
+       
+- debug: msg="Splunk version to be installed = {{splunk_version_to_install.stdout}}"  
+
+#################################################
+# Set up destination folder for fresh install
+#################################################  
+- name: "Make '{{splunk_base_dir}}' folder writetable by splunkp user"
+  file: path={{splunk_base_dir}} mode=755
+
+- name: "Check if splunk destination folder exists: '{{splunk_base_dir}}/{{ splunk_dir }}'"
+  stat: path="{{splunk_base_dir}}/{{ splunk_dir }}"
+  register: splunk_path
+
+- name: Announce splunk directory exists
+  debug: msg="Folder exists - {{splunk_base_dir}}/{{ splunk_dir }}"
+  when: splunk_path.stat.exists
+
+- name: Create splunk directory
+  file: 
+    path: "{{splunk_base_dir}}/{{ splunk_dir }}"
+    mode: 0755
+    state: directory
+  when: splunk_path.stat.exists == false
+
+- name: Checking if splunkforwarder is already installed
+  stat: path="{{ splunk_uf_home }}"  
+  register: splunk_install
+ 
+
+- debug: msg="Splunk Universal Forwarder is not installed at {{splunk_uf_home}}."
+  when: splunk_install.stat.exists == false   # Splunk is not installed
+
+- set_fact:
+    installed_vs_staged_version: ""   # set default value
+    
+- set_fact:
+    installed_version: ""   # set default value
+
+- block:
+   ###################################### 
+   # Capture installed version of Splunk
+   ######################################
+  - name: Get version of installed Splunk Universal Forwarder
+    shell: "{{ splunk_uf_home }}/bin/splunk version"
+    register: splunk_status
+
+  - name: Display splunk forwarder status output (all lines)
+    debug: msg="{{splunk_status.stdout_lines}}"
+
+  - set_fact: # get line containing Splunk version
+      splunk_version_line: "{{ splunk_status.stdout_lines | select('match','Splunk *') | list | first }}"
+
+  - debug: msg="Splunk version line item = {{splunk_version_line}}"
+  
+  - name: Isolate installed splunk version number
+    shell: echo "{{splunk_version_line}}" | grep -Po "(?<=\Splunk Universal Forwarder).*?(?=\\(build .*)"
+    register: installed_splunk_version
+    
+  - set_fact: # Capture splunk version number (trim spaces)
+      installed_version: "{{installed_splunk_version.stdout|trim}}"
+ 
+  - debug: msg="Splunk forwarder version '{{installed_version}}' is installed.  Install dir is - {{splunk_uf_home}}"
+
+  ########################################
+  # Compare installed vs staged version
+  ########################################
+  - set_fact:
+      installed_vs_staged_version: "{% if installed_version is version_compare(splunk_version_to_install.stdout, '<') %}LOWER THAN{% endif %}"
+  - set_fact:
+      installed_vs_staged_version: "{% if installed_version is version_compare(splunk_version_to_install.stdout, '>') %}GREATER THAN{% endif %}"  
+    when:  installed_vs_staged_version == ""  
+  - set_fact:
+     installed_vs_staged_version: "{% if installed_version is version_compare(splunk_version_to_install.stdout, '=') %}EQUAL TO{% endif %}"  
+    when:  installed_vs_staged_version == ""       
+    
+  - debug: msg="Installed version ({{installed_version}}) is {{installed_vs_staged_version}} staged version ({{splunk_version_to_install.stdout}})"
+  
+  when: splunk_install.stat.exists == true   # when Splunk is already installed"
+
+
+###############################
+# Install or Upgrade Splunk 
+###############################
+- name:  "Splunk upgrade scenario - Stop splunk universal forwarder"
+  shell: "{{ splunk_uf_home }}/bin/splunk stop"
+  when: installed_vs_staged_version == 'LOWER THAN'
+
+
+- block:
+#   - name:  "Splunk upgrade scenario - Stop splunk universal forwarder"
+#     shell: "{{ splunk_uf_home }}/bin/splunk stop"
+#     when: installed_vs_staged_version == 'LOWER THAN'
+    
+
+   - name: "Installing Splunk universal forwarder version {{splunk_version_to_install.stdout}} on Linux host"
+     tags: install
+     unarchive: src="splunk_binaries/{{splunk_uf_binary_linux}}" dest="{{splunk_base_dir}}/{{ splunk_dir }}" creates=yes mode=755
+     when: host_os == 'Linux'
+  
+  
+   - name: "AIX: Installing Splunk universal forwarder version {{splunk_version_to_install.stdout}}"
+     block:
+       - name: "Copy AIX tar file to host at {{splunk_base_dir}}/{{ splunk_dir }}"
+         copy: src="splunk_binaries/{{splunk_uf_binary_aix}}" dest="{{splunk_base_dir}}/{{ splunk_dir }}" mode=755
+
+       - name:  Untar AIX file
+         shell: "tar -xvzf {{splunk_base_dir}}/{{ splunk_dir }}/{{splunk_uf_binary_aix}}"
+     when: host_os == 'AIX'
+
+
+   - name: Copy inputs.conf
+     tags: install
+     copy: src=splunkforwarder/etc/system/local/inputs.conf dest="{{ splunk_uf_home }}/etc/system/local" mode=755
+  
+  
+   - name: Add FQDN to inputs.conf 
+     tags: install
+     shell:  nslookup `hostname` | grep Name | awk '{print "host = " $2}' >> {{ splunk_uf_home }}/etc/system/local/inputs.conf
+ 
+
+   - name: Copy server.conf
+     tags: install
+     copy: src=splunkforwarder/etc/system/local/server.conf dest="{{ splunk_uf_home }}/etc/system/local" mode=755
+
+
+   - name: Add FQDN to server.conf 
+     tags: install
+     shell:  nslookup `hostname` | grep Name | awk '{print "serverName = " $2}' >> {{ splunk_uf_home }}/etc/system/local/server.conf
+  
+  
+   - name: Accept license and start splunk universal forwarder
+     tags: install
+     shell: "{{ splunk_uf_home }}/bin/splunk start --accept-license  --no-prompt --answer-yes"
+  when: (splunk_install.stat.exists == false) or (installed_vs_staged_version == 'LOWER THAN')
+

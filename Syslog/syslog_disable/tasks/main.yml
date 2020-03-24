@@ -1,0 +1,54 @@
+---
+# In rsyslog/syslog.conf file, replace any line that contains a syslog host name, e.g.'@nasyslogs.tjx.com' with a date-stamped comment line. 
+
+- name: Get OS of target server
+  command: uname
+  register: uname
+
+- debug: msg="OS is {{ uname.stdout }}"
+
+
+- name: Abort if host OS is not Linux or AIX
+  fail:
+    msg: "Unsupported operating system '{{uname.stdout}}'"
+  when: uname.stdout|lower !='linux' and uname.stdout|lower !='aix'
+
+
+- set_fact:
+    host_os: "{{uname.stdout|lower}}"
+
+
+- set_fact:   
+   syslog_conf_file: "{% if (host_os == 'linux') %}/etc/rsyslog.conf{% else %}/etc/syslog.conf{% endif %}"
+ 
+- debug: 
+    msg: "syslog conf file is {{syslog_conf_file}}"
+
+
+- name: Search for key string in conf file
+  command: grep -n '@..syslogs\.tjx\.com' "{{syslog_conf_file}}" 
+  changed_when: false
+  register: string_exists
+  ignore_errors: True
+ 
+- debug: 
+    msg: "Matching string found (see above)."
+  with_items: "{{string_exists.stdout}}"
+  when: string_exists.rc == 0
+
+ 
+- name: Report & abort if string pattern (syslog hostname) not present in conf file 
+  fail:
+    msg: "String pattern '@..syslogs.tjx.com' does not exist in file {{syslog_conf_file}}"
+  when: string_exists.rc == 1
+
+###########################################
+# This action disables syslog forwarding  
+########################################### 
+- name: In conf file, replace any line that contains a syslog host name, e.g.'@nasyslogs.tjx.com'
+  replace: 
+    path:     '{{syslog_conf_file}}'
+    regexp:   '^.*@..syslogs\.tjx\.com.*$'
+    replace:  "# This line (originally containing syslog host name. e.g. '@nasys1ogs.tjx.com') was replaced by Ansible role 'syslog_disable' on {{datetime}}."
+    backup:  yes
+    

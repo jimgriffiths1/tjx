@@ -1,0 +1,20 @@
+---
+# This playbook starts Splunk Universal Forwarder if not already running
+
+- hosts: all
+  become: true
+  become_user: "{{splunk_user_name}}"  # defined in group_vars
+  become_method: dzdo
+  gather_facts: no
+  
+  tasks:  
+  
+  - name: Step 1 - get splunk status
+    shell: "{{ splunk_uf_home }}/bin/splunk status"
+    register: splunk_status
+    ignore_errors: True
+    
+  - name: Step 2 - start splunkUniversalForwarder if not running
+    shell: "{{ splunk_uf_home }}/bin/splunk start"
+    when: (splunk_status.rc == 0) or (splunk_status.stdout | search("not running"))
+

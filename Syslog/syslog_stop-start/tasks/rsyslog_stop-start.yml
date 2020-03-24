@@ -1,0 +1,43 @@
+---
+# Stop & start the logging service to engage the config update
+# Perform the appropriate logic based on the OS of the target server (via 'platform' flag.)
+
+- block:
+
+  - block: 
+    - name: Stop log service on Linux 
+      service:
+        name: rsyslog
+        state: stopped
+           
+    - name: Start log service on Linux
+      service:
+        name: rsyslog
+        state: started
+        enabled: True
+    when:  "'linux' in platform"
+  
+  - block: 
+    - name: Get AIX log service state
+      command:  lssrc -s syslogd
+      register: syslogd_output
+    
+    - name: Show AIX log service state
+      debug: msg={{syslogd_output.stdout}}
+   
+    - name: Stop log service on AIX (only if 'active')
+      command: /usr/bin/stopsrc -s syslogd
+      when: syslogd_output.stdout is search('active')
+      
+    - name: Start log service on AIX
+      command: /usr/bin/startsrc -s syslogd
+      register: syslogd_output  
+       
+    - name: Show log service state
+      debug: msg={{syslogd_output.stdout}}
+      
+    when: "'aix' in platform"
+  when: splunk_forwarder_install.stat.exists == False 
+
+
+ 

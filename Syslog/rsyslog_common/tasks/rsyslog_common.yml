@@ -1,0 +1,26 @@
+---
+
+- name: "Check existance of Splunk Universal Forwarder install at: {{splunk_uf_home}}"
+  stat:
+    path: "{{splunk_uf_home}}"
+  register: splunk_forwarder_install  
+
+ 
+- stat:
+    path: /etc/rsyslog.conf
+  register: rsyslog_conf
+ 
+- name: "Record path of system log conf file (Linux = /etc/rsyslog.conf  AIX = etc/syslog.conf)"
+  set_fact:   
+    systemlog_conf_file: "{% if (rsyslog_conf.stat.exists == True) %}/etc/rsyslog.conf{% else %}/etc/syslog.conf{% endif %}"
+ 
+- debug: 
+    msg: "systemlog_conf_file path is {{systemlog_conf_file}}"
+       
+ 
+- name: "Set platform variable to AIX or Linux"
+  set_fact: 
+    platform: "{% if ('rsyslog.conf' in systemlog_conf_file) %}linux{% else %}aix{% endif %}"
+    
+- debug: 
+    msg: "platform is {{platform}}"    

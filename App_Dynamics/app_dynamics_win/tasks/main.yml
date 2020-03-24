@@ -1,0 +1,38 @@
+- name: Create temp folder for Appd zip file download
+  win_file:
+    path: "{{appd_tmp_dir_win}}"
+    state: directory
+
+
+- name: Download AppD zip file from artifactory
+  win_get_url:
+    url: "{{appd_agent_win_url}}"
+    dest: "{{appd_tmp_dir_win}}"
+
+
+- set_fact:  # isolate AppD filename.zip 
+    appd_agent_zipfile: "{{appd_agent_win_url | basename}}"
+
+   
+- set_fact: # strip .zip suffix 
+    appd_agent_zipfile: "{{appd_agent_zipfile.split('.zip')[0]}}"
+
+
+- name: Extract msi file from AppD zipfile
+  win_unzip:
+    src: "{{appd_tmp_dir_win}}\\{{appd_agent_zipfile}}.zip"
+    dest: "{{appd_tmp_dir_win}}"
+
+- debug: msg="AppDynamics installer path is {{appd_tmp_dir_win}}\{{appd_agent_zipfile}}\Installer.bat" 
+
+- name: Install AppDynamics agent by running Installer.bat
+  win_shell: ./Installer.bat
+  args:
+    chdir: "{{appd_tmp_dir_win}}\\{{appd_agent_zipfile}}"
+  register: installer_stat
+ 
+- debug: msg="AppDynamics installer output is {{installer_stat.stdout_lines}}"  
+
+# Check AppD is running   
+#  sc query AppDynamics.Agent.Coordinator_service  
+    

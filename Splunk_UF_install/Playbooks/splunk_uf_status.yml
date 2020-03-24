@@ -1,0 +1,26 @@
+---
+# This playbook returns the current run status of Splunk Universal Forwarder
+
+- hosts: splunk_uf
+  become: true
+  become_user: "{{splunk_user_name}}"  # defined in group_vars
+  become_method: dzdo
+  gather_facts: no
+  
+  tasks:  
+     
+  - name:  Get status of Splunk Universal Forwarder
+    shell: "{{ splunk_uf_home }}/bin/splunk status"
+    register: splunk_status
+    failed_when: false
+    changed_when: false
+#    ignore_errors: True
+
+  - name: Display splunk forwarder status output (all lines)
+    debug: msg="{{splunk_status.stdout_lines}}"    
+
+
+  - name: Display splunk forwarder status (if Splunk was running)
+    debug: var=splunk_status.stdout_lines
+    when: (splunk_status.rc == 0)
+

@@ -1,0 +1,48 @@
+---
+# Find & replace ArcSight server name with Splunk server
+
+
+- block:
+  - block: #### Linux server #####
+    - name: Search for expected string in rsyslog.conf
+      command: grep -q '@.*\.tjx\.com' "{{systemlog_conf_file}}"
+      changed_when: false
+      register: string_exists
+      ignore_errors: True
+     
+    - name: Report failure if expected string pattern not present
+      fail:
+        msg: "Expected string pattern '@.*\\.tjx\\.com' is missing from {{systemlog_conf_file}}"
+      when: string_exists.rc == 1
+  
+    - name: Linux server - Replace ArcSight host with splunk host
+      replace: 
+        path:     '{{systemlog_conf_file}}'
+        regexp:   '@.*\.tjx\.com'
+        replace:  "@{{splunk_host_location}}syslogs.tjx.com"
+        backup:  yes
+    when:  "'linux' in platform"
+   
+  - block:  ##### AIX server #####
+    - name: Search for expected string in syslog.conf
+      command: grep -q '(info;.*)(@.*)' "{{systemlog_conf_file}}"
+      changed_when: false
+      register: string_exists
+      ignore_errors: True
+     
+    - name: Report failure if expected string pattern not present
+      fail:
+        msg: "Expected string '(info;.*)(@.*)' is missing from {{systemlog_conf_file}}"
+      when: string_exists.rc == 1
+
+    - name: AIX server - Replace ArcSight host with splunk host
+      replace: 
+        path:     '{{systemlog_conf_file}}'
+        regexp:   '(info;.*)(@.*)'
+        replace:  '\1@{{splunk_host_location}}syslogs.tjx.com' 
+        backup:  yes      
+    when:  "'aix' in platform"
+  when: splunk_forwarder_install.stat.exists == False
+
+ 
+  

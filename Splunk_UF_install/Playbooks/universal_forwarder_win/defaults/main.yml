@@ -1,0 +1,9 @@
+#location: "{{ vmbuild_vm_location }}"
+location: "ctc"
+
+loctoreg: 
+ ctc: "NA"
+ aus: "AUS"
+ wat: "EU"
+
+splunk_version: "7.2.0"

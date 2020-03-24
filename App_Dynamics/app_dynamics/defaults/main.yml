@@ -1,0 +1,2 @@
+---
+install_java_agent: false   # set default

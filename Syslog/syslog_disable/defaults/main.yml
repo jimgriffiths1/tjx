@@ -1,0 +1,7 @@
+---
+# Variables used in this role. 
+#
+# File path:  ...roles->rsyslog_common->defaults->main.yml
+# 
+
+datetime: "{{ lookup('pipe', 'date +%Y%m%d_%H%M') }}"

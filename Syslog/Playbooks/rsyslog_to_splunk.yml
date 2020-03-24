@@ -1,0 +1,18 @@
+---
+
+- hosts: all
+  become: true
+  become_user: root
+  become_method: dzdo
+
+  gather_facts: no
+
+      
+  roles:
+    - rsyslog_common
+    - rsyslog_edit
+    - rsyslog_stop-start
+
+
+
+

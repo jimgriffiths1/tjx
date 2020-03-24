@@ -1,0 +1,34 @@
+---
+# This playbook returns the version of Splunk Universal Forwarder
+
+- hosts: all
+  become: true
+  become_user: "{{splunk_user_name}}"  # defined in group_vars
+  become_method: dzdo
+  gather_facts: no
+  
+  tasks:  
+     
+  - name:  Get Splunk Universal Forwarder version
+    shell: "{{ splunk_uf_home }}/bin/splunk version"
+    register: splunk_status
+    
+    
+  - name: Display splunk version output (entire line)
+    debug: msg="{{splunk_status.stdout_lines}}"
+
+  - block:
+    - name: Isolate string containing splunk version number 
+      set_fact:
+        splunk_version_line: "{{ splunk_status.stdout_lines | select('match','Splunk *') | list | first }}"
+
+#   - debug: msg="Splunk version line item = {{splunk_version_line}}"
+  
+    - name: Isolate splunk version number from version line item (between 'Splunk Universal Forwarder' and 'build')
+      shell: echo "{{splunk_version_line}}" | grep -Po "(?<=\Splunk Universal Forwarder ).*?(?=\\(build.*)"
+      register: splunk_version_number
+       
+    - name: Display Splunk version number
+      debug: msg="{{splunk_version_number.stdout}}"
+    when: (splunk_status.rc == 0)
+      

@@ -1,0 +1,19 @@
+---
+# This playbook restarts Splunk Universal Forwarder
+
+- hosts: all
+  become: true
+  become_user: "{{splunk_user_name}}"  # defined in group_vars
+  become_method: dzdo
+  gather_facts: no
+  
+  tasks:  
+ 
+  - name:  restart Splunk Universal Forwarder 
+    shell: "{{ splunk_uf_home }}/bin/splunk restart"
+    
+
+
+
+
+

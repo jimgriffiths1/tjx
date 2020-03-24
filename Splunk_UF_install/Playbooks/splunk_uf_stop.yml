@@ -1,0 +1,32 @@
+---
+# This playbook stops Splunk Universal Forwarder if currently running
+
+- hosts: all
+  become: true
+  become_user: "{{splunk_user_name}}"  # defined in group_vars
+  become_method: dzdo
+  gather_facts: no
+  
+  tasks:  
+  
+  - name: Step 1 - get splunk status
+    shell: "{{ splunk_uf_home }}/bin/splunk status"
+    register: splunk_status
+    failed_when: false   # Avoid error text if Splunk already stopped 
+    changed_when: false  # Don't set 'changed' flag
+#   ignore_errors: True
+        
+     
+  - name: Display splunk forwarder status output (all lines)
+    debug: msg="{{splunk_status.stdout_lines}}"    
+    
+    
+  - name: Step 2 - stop splunkUniversalForwarder if running
+    shell: "{{ splunk_uf_home }}/bin/splunk stop"
+    when: (splunk_status.rc == 0) and (splunk_status.stdout is search("is running"))
+     
+
+
+
+
+

@@ -1,0 +1,213 @@
+---
+# This role will install AppDynamics Java and/or Machine agents
+
+
+##############################################################
+# Set default values
+###############################################################  
+- set_fact:
+    java_agent_version_installed: 0
+
+- set_fact:
+    java_agent_version_to_install: 0
+
+- set_fact:
+    machine_agent_version_installed: 0
+
+- set_fact:
+    machine_agent_version_to_install: 0
+
+
+
+
+###############################################################
+# Create temp folder for AppDynamics .zip file
+###############################################################  
+- name: "Create temp directory - {{appd_tmp_dir}}"
+  file:
+   path: "{{appd_tmp_dir}}"
+   state: directory
+  tags:
+    - java_agent
+    - machine_agent
+
+###############################################################
+# JAVA AGENT: Set up for java agent install
+###############################################################  
+- block:
+  - set_fact:  # isolate Java agent filename.zip 
+      appd_agent_zipfile: "{{appd_java_agent_url | basename}}"
+    
+
+  - name: "Check if java agent already installed"
+    find:
+      file_type: directory
+      paths: "{{appd_home_dir}}"
+      patterns: "AppServerAgent-*"
+    register: appd_folder
+
+  - block:
+    - name: Get version number of INSTALLED AppD java agent
+      shell: echo "{{appd_folder.files[0].path}}" | grep -Po "(?<=AppServerAgent-)(.*?)(?=$)"
+      register: java_agent_version_installed
+
+    - set_fact: 
+       java_agent_version_installed: "{{java_agent_version_installed.stdout}}"
+ 
+    - debug: msg="AppDynamics java agent is already installed. Version is: {{java_agent_version_installed}}"
+    when: appd_folder.matched != 0
+
+ 
+  - name: Isolate version number of AppD java agent being installed (between dash and .zip) 
+    shell: echo "{{appd_java_agent_url}}" | grep -Po "(?<=AppServerAgent-)(.*?)(?=.zip$)"
+    register: appd_version_to_install
+         
+ 
+  - debug: msg="AppD version to be installed = {{appd_version_to_install.stdout}}"  
+
+     
+  - debug: msg="AppDynamics java agent is not currently installed"
+    when: appd_folder.matched == 0
+   
+  - set_fact:  
+      install_java_agent: true  
+    when: appd_folder.matched == 0  
+    
+   
+  #========================================================
+  # Create AppD destination folder:  /tjx/appdynamics
+  #========================================================
+  - name: "Create AppDynamics base directory - {{appd_home_dir}}"
+    file:
+      path: '{{appd_home_dir}}'
+      state: directory
+      mode: 0755  
+    when: install_java_agent == true
+  tags: java_agent
+
+
+  
+- block:
+  ###############################################################
+  # JAVA AGENT: Download AppDynamics agent zip from artifactory
+  ###############################################################  
+  - name: "Download AppDynamics JAVA AGENT zip file from artifactory to temp dir - ({{appd_tmp_dir}})"
+    get_url:
+      url: '{{appd_java_agent_url}}'
+      dest: "{{appd_tmp_dir}}"
+      mode: 0755
+      validate_certs: no
+      timeout: 30
+ 
+  ###############################################################
+  # JAVA AGENT: Announce version of AppDynamics being installed
+  ###############################################################  
+  - name: Isolate version number of AppD java agent being installed (between dash and .zip) 
+    shell: echo "{{appd_java_agent_url}}" | grep -Po "(?<=AppServerAgent-)(.*?)(?=.zip$)"
+    register: appd_version_to_install
+         
+  - debug: msg="AppD version to be installed = {{appd_version_to_install.stdout}}"  
+
+     
+  #########################################################
+  # JAVA AGENT: Install (unzip) AppDynamics
+  #########################################################
+  - name: "Install AppD java agent (unzip from temp location)"
+    unarchive: 
+      remote_src: yes
+      src: "{{appd_tmp_dir}}/{{appd_agent_zipfile}}"
+      dest: "{{appd_home_dir}}" 
+      mode: 0755  
+ 
+    when: install_java_agent == true     
+    
+  tags: java_agent
+
+  
+- block:
+  ##################################################################
+  # MACHINE AGENT: Download AppDynamics agent zip from artifactory
+  ##################################################################
+  - name: "Download AppDynamics MACHINE AGENT zip file from artifactory to temp dir - ({{appd_tmp_dir}})"
+    get_url:
+      url: '{{appd_machine_agent_url}}'
+      dest: "{{appd_tmp_dir}}"
+      mode: 0755
+      validate_certs: no
+      timeout: 30
+     
+     
+  - set_fact:
+      appd_agent_zipfile: "{{appd_machine_agent_url | basename}}"
+      
+  - debug: msg="AppD agent zip file is {{appd_agent_zipfile}}"
+
+
+  ##################################################################
+  # MACHINE AGENT: Announce version of AppDynamics being installed
+  ##################################################################  
+  - name: Isolate version number of AppD machine agent being installed (between dash and .zip) 
+    shell: echo "{{appd_machine_agent_url}}" | grep -Po "(?<=linux-)(.*?)(?=.zip$)"
+    register: appd_version_to_install
+         
+  - debug: msg="AppD version to be installed = {{appd_version_to_install.stdout}}"  
+
+
+  #########################################################
+  # MACHINE AGENT: Create machine agent subfolder 
+  ######################################################### 
+  - set_fact:
+     appd_agent_zipfile:  "{{appd_agent_zipfile | regex_replace('.zip')}}"
+  
+  
+  - name: "Create AppDynamics machine agent subfolder  - {{appd_home_dir}}/{{appd_agent_zipfile}}"
+    file:
+      path: '{{appd_home_dir}}/{{appd_agent_zipfile}}'
+      state: directory
+      mode: 0755  
+
+
+     
+  #########################################################
+  #  MACHINE AGENT: Install (unzip) AppDynamics
+  #########################################################
+  - name: Install AppD machine Agent (unzip from temp location)
+    unarchive: 
+      remote_src: yes
+      src: "{{appd_tmp_dir}}/{{appd_agent_zipfile}}.zip"
+      dest: "{{appd_home_dir}}/{{appd_agent_zipfile}}"
+      mode: 0755  
+ 
+  tags: machine_agent
+
+
+
+- block: 
+  #====================================
+  # Get name of Agent's subfolder 
+  #====================================
+  - set_fact:
+      agent_parent_dir: "{{appd_home_dir}}/{{appd_agent_zipfile}}"
+  - set_fact:    
+      agent_parent_dir: "{{agent_parent_dir | regex_replace('.zip')}}"
+  - debug: msg="AppD agent destination is {{agent_parent_dir}}"
+
+
+  #=======================================
+  # Set permissions on agent subfolders
+  #=======================================
+  - name: "Set file ownership for AppD child folders - {{agent_parent_dir}}" 
+    file:
+      path: "{{agent_parent_dir}}" 
+      recurse: yes
+      mode: '0755'
+ 
+  - name: "Remove temp folder - {{appd_tmp_dir}}"
+    file:
+      path: "{{appd_tmp_dir}}"
+      state: absent
+
+  tags:
+    - java_agent
+    - machine_agent
+
